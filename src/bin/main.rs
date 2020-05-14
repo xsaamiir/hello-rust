@@ -1,38 +1,33 @@
-use std::time::Instant;
 use std::{
-    collections::HashMap,
-    error::Error,
-    fs,
-    io::prelude::*,
-    net::TcpListener,
-    net::TcpStream,
-    thread,
-    time::{self, Duration},
+    collections::HashMap, error::Error, fs, io::prelude::*, net::TcpListener, net::TcpStream,
+    thread, time::Duration, time::Instant,
 };
+
+use hello::ThreadPool;
 
 const CRLF: &str = "\r\n";
 
 fn main() -> Result<(), Box<dyn Error>> {
     let listener = TcpListener::bind("127.0.0.1:7878")?;
-    println!("✅ Listen on port 7878");
+    let pool = ThreadPool::new(4);
+    println!("👂 listening on port 7878");
 
     for stream in listener.incoming() {
         let stream: TcpStream = stream?;
-        let mut active_conns = vec![];
 
         let now = Instant::now();
-        active_conns.push(thread::spawn(move || {
+        pool.execute(move || {
             handle_connection(now, stream);
-        }));
+        });
     }
 
-    println!("Bye Bye 👋");
+    println!("bye bye 👋");
     Ok(())
 }
 
 fn handle_connection(now: Instant, mut stream: TcpStream) {
     println!(
-        "⏳ Starting request processing, elapsed: {:?}",
+        "⏳ starting request processing, elapsed: {:?}",
         now.elapsed()
     );
     let mut buffer = [0; 1024];
@@ -40,7 +35,7 @@ fn handle_connection(now: Instant, mut stream: TcpStream) {
     stream.read(&mut buffer).unwrap();
 
     let req = String::from_utf8_lossy(&buffer);
-    // println!("{}", req);
+    println!("{}", req);
 
     // HTTP requests have the following format
     //  Method Request-URI HTTP-Version CRLF
@@ -49,11 +44,9 @@ fn handle_connection(now: Instant, mut stream: TcpStream) {
     let req: Vec<&str> = req
         .lines()
         .next()
-        .map(|first_line| first_line.split(" ").collect())
+        .map(|first_line| first_line.split(' ').collect())
         .unwrap();
     let uri = req[1];
-
-    // println!("Method: {}, URI: {}", method, uri);
 
     let response = match uri {
         "/" => http_respond(200, "static/hello.html"),
